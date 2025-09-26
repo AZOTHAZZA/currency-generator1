@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スマホブラウザ完全版通貨生成所＋生成AI</title>
+<style>
+body { font-family: sans-serif; padding: 10px; }
+.currency-block { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+.currency-name { font-weight: bold; font-size: 1.1em; margin-bottom: 5px; }
+.balance { font-size: 1.2em; color: #007bff; }
+button { margin: 3px 0; padding: 8px; font-size: 0.95em; width: 100%; border-radius: 5px; }
+.mint-btn { background-color: #4CAF50; color: white; }
+.reduce-btn { background-color: #f0ad4e; color: white; }
+.delete-btn { background-color: #d9534f; color: white; }
+#ai-panel, #chat-panel { margin: 15px 0; }
+#ai-response, #chat-log { margin-top: 5px; font-size: 0.9em; color: #555; min-height: 24px; }
+#chat-log { border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: scroll; }
+#admin-panel { display: none; margin-top: 15px; }
+</style>
+</head>
+<body>
+
+<h2>通貨生成所</h2>
+<div class="currency-block" data-currency="JPY">
+  <div class="currency-name">日本円 (JPY) <span class="balance">0</span></div>
+  <button class="mint-btn">生成</button>
+  <button class="reduce-btn">減額</button>
+  <button class="delete-btn">削除</button>
+</div>
+<div class="currency-block" data-currency="USD">
+  <div class="currency-name">米ドル (USD) <span class="balance">0</span></div>
+  <button class="mint-btn">生成</button>
+  <button class="reduce-btn">減額</button>
+  <button class="delete-btn">削除</button>
+</div>
+
+<h2>日本型生成AIアドバイス</h2>
+<div id="ai-panel">
+  <textarea id="ai-input" placeholder="操作に関する相談を入力" style="width:100%; height:60px;"></textarea>
+  <button id="ai-send-btn">送信</button>
+  <div id="ai-response"></div>
+</div>
+
+<h2>自由対話チャットAI</h2>
+<div id="chat-panel">
+  <div id="chat-log"></div>
+  <input type="text" id="chat-input" placeholder="ここに入力">
+  <button id="chat-send">送信</button>
+</div>
+
+<h2>管理者パネル</h2>
+<div id="admin-login">
+  <input type="password" id="admin-pass" placeholder="管理者パスワード">
+  <button id="login-btn">ログイン</button>
+</div>
+<div id="admin-panel">
+  <button id="reset-balances-btn">全残高リセット</button>
+  <button id="toggle-infinite-btn">無限生成ON/OFF</button>
+</div>
+
+<script>
+let accounts = { user: { JPY: 0, USD: 0 } };
+let user = 'user';
+let infiniteGeneration = false;
+const adminPass = "secret";
+
+// UI更新
+function updateUI() {
+  document.querySelectorAll(".currency-block").forEach(block => {
+    const currency = block.dataset.currency;
+    block.querySelector(".balance").textContent = accounts[user][currency];
+  });
+}
+
+// 日本型AI提案
+function japaneseAIAction(action, currency, amount) {
+  if(action === "generate") return amount>1000 ? `${currency} の生成量が多すぎます。少なめをおすすめします。` : `${currency} ${amount} を生成しますか？`;
+  if(action === "reduce") return `${currency} を減額する操作ですね。`;
+  if(action === "delete") return `${currency} を全額削除しますか？`;
+  return "";
+}
+
+// 通貨操作ボタン
+document.querySelectorAll(".currency-block").forEach(block => {
+  const currency = block.dataset.currency;
+  block.querySelector(".mint-btn").onclick = () => {
+    let amount = parseFloat(prompt(`${currency} 生成額を入力 (1-1000)`));
+    if(!isNaN(amount) && amount>0){
+      if(amount>1000) amount=1000;
+      if(infiniteGeneration) amount*=2;
+      accounts[user][currency]+=amount;
+      updateUI();
+      document.getElementById("ai-response").textContent = japaneseAIAction("generate", currency, amount);
+    }
+  };
+  block.querySelector(".reduce-btn").onclick = () => {
+    let amount = parseFloat(prompt(`${currency} 減額額を入力`));
+    if(!isNaN(amount) && amount>0){
+      accounts[user][currency] = Math.max(0, accounts[user][currency]-amount);
+      updateUI();
+      document.getElementById("ai-response").textContent = japaneseAIAction("reduce", currency, amount);
+    }
+  };
+  block.querySelector(".delete-btn").onclick = () => {
+    if(confirm(`${currency} を全額削除しますか？`)){
+      accounts[user][currency]=0;
+      updateUI();
+      document.getElementById("ai-response").textContent = japaneseAIAction("delete", currency, 0);
+    }
+  };
+});
+
+// AI入力
+document.getElementById("ai-send-btn").onclick = () => {
+  const userText = document.getElementById("ai-input").value;
+  let response = "操作に応じたアドバイスが表示されます";
+  if(userText.includes("生成")) response = japaneseAIAction("generate","JPY",500);
+  else if(userText.includes("削除")) response = japaneseAIAction("delete","JPY",0);
+  else if(userText.includes("減額")) response = japaneseAIAction("reduce","JPY",200);
+  document.getElementById("ai-response").textContent = response;
+};
+
+// ChatGPT風自由対話
+document.getElementById("chat-send").onclick = () => {
+  const input = document.getElementById("chat-input").value;
+  if(!input) return;
+  const chatLog = document.getElementById("chat-log");
+  chatLog.innerHTML+=`<div><b>あなた:</b> ${input}</div>`;
+  let response = "生成AI: " + (input.includes("生成") ? "通貨生成操作ですね。" : "わかりました。");
+  chatLog.innerHTML+=`<div><b>${response}</b></div>`;
+  chatLog.scrollTop = chatLog.scrollHeight;
+  document.getElementById("chat-input").value="";
+};
+
+// 管理者ログイン
+document.getElementById("login-btn").onclick = () => {
+  if(document.getElementById("admin-pass").value===adminPass){
+    document.getElementById("admin-panel").style.display="block";
+    alert("管理者ログイン成功");
+  } else alert("パスワードが違います");
+};
+
+// 管理者操作
+document.getElementById("reset-balances-btn").onclick = () => {
+  for(let c in accounts[user]) accounts[user][c]=0;
+  updateUI();
+};
+document.getElementById("toggle-infinite-btn").onclick = () => {
+  infiniteGeneration = !infiniteGeneration;
+  alert(`無限生成 ${infiniteGeneration?"ON":"OFF"}`);
+};
+
+updateUI();
+</script>
+</body>
+</html>
